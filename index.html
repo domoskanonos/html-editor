@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Template Renderer</title>
+    <style>
+
+        * {
+            --color: #383838;
+            --background-color: #ffffff;
+            --border-color: #a1a1a1;
+            --selected-color: #6b97bd;
+            --secondary-color-text: #ffffff;
+            --secondary-color-background: #1e1e1e;
+
+            --space: 4px;
+            --space-2: 16px;
+            --space-3: 24px;
+            --space-4: 32px;
+            --space-6: 48px;
+            --space-8: 64px;
+
+            font-family: "Helvetica Neue", Helvetica, Arial, Calibri, Futura, "Gill Sans", "Gill Sans MT", sans-serif;
+            text-rendering: optimizeLegibility;
+        }
+
+        /** button - start */
+        .button {
+            color: var(--secondary-color-text);
+            font-weight: bold;
+            background-color: var(--secondary-color-background);
+            border-radius: 0;
+            display: block;
+            text-align: center;
+            padding: var(--space-2) var(--space-4);
+            text-transform: uppercase;
+            box-sizing: border-box;
+            width: max-content;
+            text-decoration: none;
+        }
+
+        .button:hover {
+            color: var(--secondary-color-background);
+            background-color: var(--secondary-color-text);
+            outline: 2px var(--secondary-color-background) solid;
+        }
+
+        /** button - end */
+
+        #toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--color);
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        #container {
+            display: flex;
+            height: calc(100vh - 80px); /* Abzüglich der Toolbar-Höhe */
+            margin-top: 80px; /* Höhe der Toolbar */
+        }
+
+        #selector {
+            flex: 1;
+            padding: 20px;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+
+        .template-box {
+            width: 150px;
+            height: 150px;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            transition: border-color 0.3s;
+            background-color: black;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px; /* Abstand zum Template-Namen */
+        }
+
+        .template-box.selected-template {
+            border: 3px solid var(--selected-color);
+        }
+
+        .template-box:hover {
+            border-color: #000;
+        }
+
+
+        #renderer {
+            flex: 2;
+            padding: 20px;
+            border-right: 1px solid var(--border-color); /* Hinzugefügt, um die dritte Spalte vom Renderer zu trennen */
+        }
+
+        #third-column {
+            flex: 1;
+            padding: 20px;
+        }
+
+
+        #resizer {
+            cursor: ew-resize;
+            background-color: var(--border-color);
+            width: 10px;
+            height: 100%;
+        }
+
+        #resizer2 {
+            cursor: ew-resize;
+            background-color: var(--border-color);
+            width: 10px;
+            height: 100%;
+        }
+
+        /* Stil für das neue Popup-Fenster */
+        #textEditPopup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7); /* Halbtransparenter Hintergrund */
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* Stellen Sie sicher, dass das Popup über anderen Elementen angezeigt wird */
+        }
+
+        #textEditContent {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            position: relative;
+            width: 50%;
+            max-width: 500px; /* Maximale Breite für das Popup */
+        }
+
+        .component-selector {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            border: 1px solid var(--border-color);
+            z-index: 1;
+            top: 0;
+            right: 0;
+        }
+
+        .dragover {
+            border: 2px dashed #0099ff;
+        }
+
+
+        .has-components:hover .component-selector {
+            display: block;
+        }
+
+        .hover-highlight {
+            outline: 2px solid #0099ff; /* Sie können die Farbe und den Stil des Rahmens nach Belieben ändern */
+            cursor: pointer;
+        }
+
+        .selected-component {
+            background-color: #e0e0e0; /* Sie können die Farbe nach Belieben ändern */
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
+        .component-item {
+            position: relative;
+        }
+
+        .remove-component {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background-color: red;
+            color: var(--color);
+            border: none;
+            cursor: pointer;
+        }
+
+        .drop-indicator {
+            height: 3px; /* Höhe des pinken Streifens */
+            background-color: pink; /* Farbe des pinken Streifens */
+            position: absolute;
+            left: 0;
+            right: 0;
+            z-index: 10;
+        }
+
+        .parent-highlight {
+            border: 2px dashed #0099ff;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .visible {
+            display: flex;
+        }
+
+        #impressumPopup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+        }
+
+
+        #impressumContent {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+
+    </style>
+</head>
+<body>
+<div id="toolbar">
+    <a href="https://editor.nidoca.de/Handbuch.pdf" class="button" target="_blank">Anleitung</a>
+    <button class="button" onclick="clearRenderer()">Inhalt löschen</button>
+    <button class="button" onclick="downloadContent()">Als HTML herunterladen</button>
+    <button class="button" onclick="copyToClipboard()">In Zwischenablage kopieren</button>
+    <button class="button" onclick="showImpressum()">Impressum</button>
+</div>
+<div id="container">
+    <div id="selector">
+        <input type="file" id="newTemplateFile" style="display:none;">
+        <button class="button" id="uploadButton" onclick="uploadNewTemplate()">Neues Template hochladen</button>
+
+        <!-- Die Bilder werden dynamisch aus dem JSON geladen -->
+        <div id="templateContainer">
+            <!-- Hier werden die Template-Namen angezeigt -->
+        </div>
+
+    </div>
+    <div id="resizer"></div>
+    <div id="renderer"></div>
+    <div id="resizer2"></div>
+    <div id="third-column">
+        <!-- Inhalt für die dritte Spalte -->
+    </div>
+</div>
+
+<script>
+    let isResizing = false;
+
+    const container = document.getElementById('container');
+    const resizer = document.getElementById('resizer');
+    const selector = document.getElementById('selector');
+    const renderer = document.getElementById('renderer');
+
+    const templateFileInput = document.getElementById('newTemplateFile');
+    templateFileInput.addEventListener('change', function () {
+
+        const fileInput = document.getElementById('newTemplateFile');
+
+        if (fileInput.files.length === 0) {
+            alert("Bitte wählen Sie eine Datei aus.");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const templateName = file.name.replace(/\.[^/.]+$/, "");  // Entfernt die Dateierweiterung
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            const newTemplateContent = event.target.result;
+            const newTemplate = {
+                name: templateName,
+                content: newTemplateContent
+            };
+
+            templates.push(newTemplate);
+
+            // Template-Thumbnail im Selector hinzufügen
+            const div = document.createElement('div');
+            div.className = 'template-box';
+            div.innerText = newTemplate.name
+            div.onclick = () => renderTemplate(newTemplate.name);
+            selector.appendChild(div);
+
+            // Eingabefelder zurücksetzen
+            fileInput.value = '';
+
+            // Update des Template-Selectors
+            updateTemplateSelector();
+
+            // Das neu hinzugefügte Template direkt rendern
+            renderTemplate(templateName);
+        };
+
+        reader.readAsText(file);
+    });
+
+    let listenersAdded = false;
+
+    // JSON-Definition der Templates
+    const templates = [];
+
+    function updateTemplateSelector() {
+        // Alle aktuellen Template-Namen löschen
+        const templateContainer = document.getElementById("templateContainer");
+        templateContainer.innerHTML = '';
+
+        if (templates.length === 0) {
+            // Keine Templates vorhanden
+            const noTemplatesText = document.createElement('p');
+            noTemplatesText.innerText = 'Keine Templates vorhanden';
+            templateContainer.appendChild(noTemplatesText);
+        }
+    }
+
+    // Template-Selector beim Laden der Seite aktualisieren
+    updateTemplateSelector();
+
+    // JSON-Definition der Komponenten
+    let components = [
+        {
+            name: 'Einfacher Text',
+            content: '<p>Einfacher Text</p>'
+        },
+        {
+            name: 'Aufzählung',
+            content: '<p class="icon iconCheckmark textCaption">Blitzversand</p>'
+        }, {
+            name: 'Karte',
+            content: '<div class="card"><div class="header secondaryColor">Versand</div><div class="box"><p>Nach Zahlungseingang senden wir Ihnen alle notwendigen Dateien des Templates gemäß Lieferumfang innerhalb von 24 Stunden per E-Mail zu.</p></div></div>\n'
+        },
+        {
+            name: 'IMG',
+            content: '<img src="https://www.taxlancer.de/img/products/small_product_3_transparent.png"/>'
+        }
+    ];
+
+    components = [];
+
+    const thirdColumn = document.getElementById('third-column');
+    components.forEach(component => {
+        const componentDiv = document.createElement('div');
+        componentDiv.innerHTML = component.content;
+        componentDiv.className = 'component-item';
+
+        // Drag-Start-Event
+        componentDiv.setAttribute('draggable', 'true');
+        componentDiv.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', component.content);
+        });
+
+        thirdColumn.appendChild(componentDiv);
+    });
+
+    // Bilder aus dem JSON dynamisch hinzufügen
+    templates.forEach(template => {
+        const div = document.createElement('div');
+        div.className = 'template-box';
+        div.innerText = template.name;
+        div.onclick = () => renderTemplate(template.name);
+        selector.appendChild(div);
+
+    });
+
+    resizer.addEventListener('mousedown', (event) => {
+        isResizing = true;
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+        });
+    });
+
+
+    const resizer2 = document.getElementById('resizer2');
+
+    let isResizing2 = false;
+    resizer2.addEventListener('mousedown', (event) => {
+        isResizing2 = true;
+        document.addEventListener('mousemove', handleMouseMove2);
+        document.addEventListener('mouseup', () => {
+            isResizing2 = false;
+            document.removeEventListener('mousemove', handleMouseMove2);
+        });
+    });
+
+    function handleMouseMove2(event) {
+        const leftWidth = event.clientX - selector.offsetWidth - resizer.offsetWidth;
+        const rightWidth = container.offsetWidth - event.clientX - resizer2.offsetWidth;
+        renderer.style.width = `${leftWidth}px`;
+        renderer.style.flex = 'none';
+        thirdColumn.style.width = `${rightWidth}px`;
+        thirdColumn.style.flex = 'none';
+    }
+
+
+    function enableTextEditing() {
+        const textElements = renderer.querySelectorAll('div, p, h1, h2, h3, h4, h5, h6, span, li, a, td, th, caption, blockquote, legend, label, img');
+
+        textElements.forEach(el => {
+
+            // Wenn das Element ein div ist, überprüfen Sie, ob es nur Text enthält
+            if (el.tagName.toLowerCase() === 'div') {
+                const hasOnlyText = Array.from(el.childNodes).every(node => node.nodeType === 3);
+                if (!hasOnlyText) {
+                    return;
+                }
+            }
+
+            // Hover-Effekt hinzufügen
+            el.addEventListener('mouseover', function () {
+                this.classList.add('hover-highlight');
+            });
+            el.addEventListener('mouseout', function () {
+                this.classList.remove('hover-highlight');
+            });
+
+
+            // Klick-Ereignis ändern, um das Popup-Fenster anzuzeigen
+            el.addEventListener('click', function (e) {
+                e.stopPropagation(); // Verhindert, dass das Klick-Ereignis an übergeordnete Elemente weitergegeben wird
+                showTextEditPopup(this);
+            });
+
+        });
+    }
+
+
+    function disableLinkClick() {
+        const links = renderer.querySelectorAll('a');
+        links.forEach(link => {
+            link.addEventListener('click', function (e) {
+                e.preventDefault(); // Verhindert das Standardverhalten des Links
+            });
+        });
+    }
+
+
+    function handleMouseMove(event) {
+        const leftWidth = event.clientX;
+        const rightWidth = container.offsetWidth - event.clientX - resizer.offsetWidth;
+        selector.style.width = `${leftWidth}px`;
+        selector.style.flex = 'none';
+    }
+
+    function renderTemplate(templateName) {
+        const template = templates.find(t => t.name === templateName);
+        if (template) {
+            renderer.innerHTML = template.content;
+            addComponentSelectors();
+            enableTextEditing();
+            disableLinkClick();
+            addRemoveButtonToComponents();
+
+            // Hinzufügen der selected-template-Klasse zum ausgewählten Template-Bild
+            const allElements = selector.querySelectorAll('.template-box');
+            allElements.forEach(element => {
+                let clazzName = 'selected-template';
+                if (element.classList.contains(clazzName)) {
+                    element.classList.remove(clazzName);
+                } else {
+                    element.classList.add(clazzName);
+                }
+            });
+        } else {
+            renderer.innerHTML = '<p>Unbekanntes Template</p>';
+        }
+    }
+
+    function addRemoveButtonToComponents() {
+        const componentItems = renderer.querySelectorAll('.component-item');
+        componentItems.forEach(item => {
+            if (!item.querySelector('.remove-component')) {
+                const removeButton = document.createElement('button');
+                removeButton.textContent = '-';
+                removeButton.className = 'remove-component';
+                removeButton.onclick = function () {
+                    item.remove();
+                };
+                item.appendChild(removeButton);
+            }
+        });
+    }
+
+
+    function addComponentSelectors() {
+
+        if (!listenersAdded) {
+
+            // Dragover-Event für das Renderer-Element
+            renderer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+
+                const targetElement = e.target;
+                if (targetElement) {
+                    const rect = targetElement.getBoundingClientRect();
+                    const relativeMouseY = e.clientY - rect.top;
+
+                    const existingIndicator = renderer.querySelector('.drop-indicator');
+                    if (existingIndicator) {
+                        existingIndicator.remove();
+                    }
+
+                    const indicator = document.createElement('div');
+                    indicator.className = 'drop-indicator';
+
+                    if (relativeMouseY < rect.height / 2) {
+                        targetElement.parentNode.insertBefore(indicator, targetElement);
+                    } else {
+                        if (targetElement.nextSibling) {
+                            targetElement.parentNode.insertBefore(indicator, targetElement.nextSibling);
+                        } else {
+                            renderer.appendChild(indicator);
+                        }
+                    }
+
+                    // Rahmen zur übergeordneten Komponente hinzufügen
+                    targetElement.classList.add('parent-highlight');
+                }
+            });
+
+// Dragleave-Event für das Renderer-Element
+            renderer.addEventListener('dragleave', (e) => {
+                // Entfernen Sie den Drop-Indicator, wenn die Maus das Renderer-Element verlässt
+                const existingIndicator = renderer.querySelector('.drop-indicator');
+                if (existingIndicator) {
+                    existingIndicator.remove();
+                }
+
+                // Rahmen von der übergeordneten Komponente entfernen
+                const highlightedParent = renderer.querySelector('.parent-highlight');
+                if (highlightedParent) {
+                    highlightedParent.classList.remove('parent-highlight');
+                }
+            });
+
+
+            // Drop-Event für das Renderer-Element
+            renderer.addEventListener('drop', (e) => {
+                e.preventDefault();
+
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = e.dataTransfer.getData('text/plain');
+                const componentContent = tempDiv.firstChild;
+
+                // Container für die Komponente und den Minus-Button erstellen
+                const containerDiv = document.createElement('div');
+                containerDiv.className = 'component-item';
+
+                // Minus-Button hinzufügen
+                const removeButton = document.createElement('button');
+                removeButton.textContent = '-';
+                removeButton.className = 'remove-component';
+                removeButton.onclick = function () {
+                    containerDiv.remove();
+                };
+
+                containerDiv.appendChild(componentContent);
+                containerDiv.appendChild(removeButton);
+
+                const existingIndicator = renderer.querySelector('.drop-indicator');
+                if (existingIndicator) {
+                    existingIndicator.parentNode.insertBefore(containerDiv, existingIndicator);
+                    existingIndicator.remove();
+                } else {
+                    renderer.appendChild(containerDiv);
+                }
+
+                enableTextEditing();
+
+                // Rahmen von der übergeordneten Komponente entfernen
+                const highlightedParent = renderer.querySelector('.parent-highlight');
+                if (highlightedParent) {
+                    highlightedParent.classList.remove('parent-highlight');
+                }
+
+            });
+
+
+            listenersAdded = true;
+        }
+
+    }
+
+    function uploadNewTemplate() {
+        const fileInput = document.getElementById('newTemplateFile');
+        fileInput.click();
+    }
+
+
+    function clearRenderer() {
+        renderer.innerHTML = '';
+    }
+
+    async function fetchCSSContent(url) {
+        try {
+            const response = await fetch(url);
+            const cssContent = await response.text();
+            return cssContent;
+        } catch (error) {
+            console.error("Fehler beim Abrufen der CSS-Datei:", error);
+            return "";
+        }
+    }
+
+    async function getFullHTMLContent() {
+        // Erstellen Sie eine Kopie des aktuellen Inhalts
+        const contentClone = renderer.cloneNode(true);
+
+        // Ersetzen Sie jeden 'component-item'-Container durch seinen ersten Child (die eigentliche Komponente)
+        contentClone.querySelectorAll('.component-item').forEach(item => {
+            const actualContent = item.firstChild.cloneNode(true);
+            item.replaceWith(actualContent);
+        });
+
+        // CSS-Inhalt aus der main.css-Datei abrufen
+        const cssContent = await fetchCSSContent('main.css');
+
+        // Erstellen Sie einen Blob aus dem bereinigten Inhalt
+        return `
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>HTML Template Renderer</title>
+        <style>
+            ${cssContent}
+        </style>
+    </head>
+    <body>
+        ${contentClone.innerHTML}
+    </body>
+    </html>
+    `;
+    }
+
+
+    async function downloadContent() {
+        const fullHTMLContent = await getFullHTMLContent();
+
+        const blob = new Blob([fullHTMLContent], {type: 'text/html'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'template.html';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+
+    function showImpressum() {
+        const impressumPopup = document.getElementById('impressumPopup');
+        impressumPopup.classList.remove('invisible');
+        impressumPopup.classList.add('visible');
+    }
+
+    function hideImpressum() {
+        const impressumPopup = document.getElementById('impressumPopup');
+        impressumPopup.classList.remove('visible');
+        impressumPopup.classList.add('invisible');
+    }
+
+
+    async function copyToClipboard() {
+        const fullHTMLContent = await getFullHTMLContent();
+
+        // Kopieren Sie den Inhalt in die Zwischenablage
+        try {
+            await navigator.clipboard.writeText(fullHTMLContent);
+            alert("Inhalt wurde in die Zwischenablage kopiert!");
+        } catch (err) {
+            console.error("Fehler beim Kopieren in die Zwischenablage:", err);
+            alert("Es gab ein Problem beim Kopieren in die Zwischenablage.");
+        }
+    }
+
+
+    let currentEditingElement = null;
+
+    function showTextEditPopup(element) {
+        const textEditPopup = document.getElementById('textEditPopup');
+        const textEditInput = document.getElementById('textEditInput');
+        const attributeInput = document.getElementById('attributeInput');
+        const attributeLabel = document.getElementById('attributeLabel');
+
+        currentEditingElement = element;
+
+        if (element.tagName.toLowerCase() === 'a') {
+            attributeLabel.textContent = "Link-URL:";
+            textEditInput.style.display = 'block';
+            textEditInput.value = element.textContent;
+            attributeInput.style.display = 'block';
+            attributeLabel.style.display = 'block';
+            attributeInput.value = element.getAttribute('href');
+        } else if (element.tagName.toLowerCase() === 'img') {
+            attributeLabel.textContent = "Bild-URL:";
+            textEditInput.style.display = 'none';
+            attributeInput.style.display = 'block';
+            attributeLabel.style.display = 'block';
+            attributeInput.value = element.getAttribute('src');
+        } else {
+            textEditInput.style.display = 'block';
+            textEditInput.value = element.textContent;
+            attributeInput.style.display = 'none';
+            attributeLabel.style.display = 'none';
+        }
+
+        textEditPopup.style.display = 'flex';
+
+        // Deaktivieren Sie die Interaktion mit dem Hintergrund
+        document.body.style.pointerEvents = 'none';
+        textEditPopup.style.pointerEvents = 'auto';
+    }
+
+
+    function hideTextEditPopup() {
+        const textEditPopup = document.getElementById('textEditPopup');
+        textEditPopup.style.display = 'none';
+        currentEditingElement = null;
+
+        // Aktivieren Sie die Interaktion mit dem Hintergrund wieder
+        document.body.style.pointerEvents = 'auto';
+    }
+
+    function saveTextChanges() {
+        const textEditInput = document.getElementById('textEditInput');
+        const attributeInput = document.getElementById('attributeInput');
+
+        if (textEditInput.value.trim() === "") {
+            currentEditingElement.remove();
+            hideTextEditPopup();
+            return;
+        }
+
+        currentEditingElement.textContent = textEditInput.value;
+
+        if (currentEditingElement.tagName.toLowerCase() === 'a' && attributeInput.style.display !== 'none') {
+            currentEditingElement.setAttribute('href', attributeInput.value);
+        } else if (currentEditingElement.tagName.toLowerCase() === 'img' && attributeInput.style.display !== 'none') {
+            currentEditingElement.setAttribute('src', attributeInput.value);
+        }
+
+        hideTextEditPopup();
+    }
+
+
+</script>
+
+<div id="textEditPopup">
+    <div id="textEditContent">
+        <label>Text:</label>
+        <label for="textEditInput"></label><textarea id="textEditInput" style="width: 100%; height: 100px;"></textarea>
+        <label id="attributeLabel">Link-URL:</label>
+        <label for="attributeInput"></label><input type="text" id="attributeInput" style="display: none; width: 100%;"/>
+        <table>
+            <tr>
+                <td>
+                    <button class="button" onclick="saveTextChanges()">Speichern</button>
+                </td>
+                <td>
+                    <button class="button" onclick="hideTextEditPopup()">Abbrechen</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+
+<div id="impressumPopup" class="hidden">
+    <div id="impressumContent">
+        <p>Dominik Bruhn</p>
+        <p>Holzwickeder Straße 109c</p>
+        <p>44309 Dortmund</p>
+        <p></p>
+        <p>Email: dominikbruhn@googlemail.com</p>
+        <button class="button" id="closeButton" onclick="hideImpressum()">Schließen</button>
+    </div>
+</div>
+
+
+</body>
+</html>
